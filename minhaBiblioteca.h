@@ -1,6 +1,14 @@
 #ifndef _MINHABIBLIOTECA_H_
 #define _MINHABIBLIOTECA_H_
 
+struct process {
+    void *(*function)(void *);
+    void * param;
+    void * returnValue;
+    int processId;
+    bool executed;
+};
+
 struct Atrib {
     int p;
     int c;
