@@ -31,14 +31,31 @@ void* fibo( void* dta ) {
     return r;
 }
 
-int main() {
-    int n, *r, tId;
+void set_args(int argc, char** argv, int* m, int* n) {
+    if(argc == 3)  {
+        // Argumento 1: nº de processadores
+        sscanf(argv[1], "%d", m);  // sscanf converte string para int
+        // Argumento 2: entrada do fibonacci
+        sscanf(argv[2], "%d", n);
+    } else {
+        // Utiliza valores padrão
+        *m = 4;
+        *n = 10;
+    }
+}
+
+
+int main(int argc, char** argv) {
+    int n, *r, tId, m;
     struct Atrib a;
-    start( 4 );
+
+    // Argumentos da linha de comando
+    set_args(argc, argv, &m, &n);
+
+    start( m );
 
     r = (int*)malloc(sizeof(int));
 
-    n = 10;
     a.p = 0;
     a.c = n;
     tId = spawn( &a, fibo, &n);
