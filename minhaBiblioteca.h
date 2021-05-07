@@ -6,7 +6,6 @@ struct process {
     void * param;
     void * returnValue;
     int processId;
-    bool executed;
 };
 
 struct Atrib {

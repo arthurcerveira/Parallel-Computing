@@ -12,10 +12,11 @@ using namespace std;
 bool isRunning = true;
 
 list <process *> processesReady, processesFinished;
+
 static pthread_t * pvs;
+pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 
 bool processIsRunning() {
-//    cout << "processIsRunning\n";
     // Verifica se há processos pendentes
     if (!processesReady.empty()) return true;
 
@@ -24,46 +25,46 @@ bool processIsRunning() {
 }
 
 void storeResult(struct process * finishedProcess, void * returnValue){
-    cout << "storeResult\n";
-    // Remove processo da processesReady
-    processesReady.remove(finishedProcess);
-
     // Adiciona valor de retorno
     finishedProcess->returnValue = returnValue;
-    cout << "ret3: " << *(int*)returnValue << "\n";
 
     // Armazena na lista de processos processesFinished
     processesFinished.push_back(finishedProcess);
 }
 
 struct process * getProcess(){
-    struct process * currentProcess;
+    struct process * currentProcess ;
 
     currentProcess = processesReady.front();
 
-    if (!currentProcess || currentProcess->executed) return NULL;
+    if (!currentProcess) return NULL;
 
     return currentProcess;
 }
 
 void* myProcessor(void* dta) {
-    cout << "myProcessor\n";
-
-    // Inicializa valor de retorno e processo
+    // Inicializa valor de retorno e processo atual
     void* returnValue;
     struct process *currentProcess;
 
-    // Enquanto aplicação estiver sendo executada
+    // Enquanto houver processos e aplicação estiver sendo executada
     while (processIsRunning()) {
+        // Lock para modificar a processesReady
+        pthread_mutex_lock(&lock);
+
         // Procura o processo atual
         currentProcess = getProcess();
 
         if (!currentProcess) continue;
 
-        // cout << currentProcess->processId << '\n';
-        // Se encontrar, executa função
-        currentProcess->executed = true;
+        // Se encontrar, remove da lista de processos prontos
+        processesReady.remove(currentProcess);
+        pthread_mutex_unlock(&lock);
+
+        // Executa função
         returnValue = currentProcess->function(currentProcess->param);
+
+        // Guarda resultado na lista de processos terminados
         storeResult(currentProcess, returnValue);
     }
 
@@ -71,8 +72,6 @@ void* myProcessor(void* dta) {
 }
 
 int start(int m) {
-    cout << "Start\n";
-
     int ret = 0;
     // Aloca memoria para os threads
     pvs = (pthread_t *)malloc(m * sizeof(pthread_t));
@@ -86,19 +85,16 @@ int start(int m) {
 }
 
 void finish(){
-    cout << "Finish\n";
     // Atualiza a variavel isRunning com valor falso
     isRunning = false;
 
-    for ( int i = 0 ; i < 4; i++ ) {
-        // Para cada thread, inicializa com a função MeuPV
-        pthread_join(pvs[i], NULL);
-    }
+    // for ( int i = 0 ; i < 4; i++ ) {
+        // Para cada thread, finaliza sua execução
+        // pthread_join(pvs[i], NULL);
+    // }
 }
 
 int spawn(struct Atrib *atrib, void *(*t)(void *), void *dta) {
-    cout << "Spawn\n";
-
     static int id = 0;
     id++;  // ID começa em 1 e é atualizado em cada execução de spawn
 
@@ -108,7 +104,6 @@ int spawn(struct Atrib *atrib, void *(*t)(void *), void *dta) {
     spawnedProcess->function = t;
     spawnedProcess->param = dta;
     spawnedProcess->processId = id;
-    spawnedProcess->executed = false;
 
     // Adiciona à lista
     processesReady.push_back(spawnedProcess);
@@ -117,35 +112,40 @@ int spawn(struct Atrib *atrib, void *(*t)(void *), void *dta) {
 }
 
 int sync(int tId, void **res) {
-    // struct process * syncedProcess;
-    cout << "Sync\n";
-
-    // Procura a thread por ID na lista de processos terminados
+    // Procura a thread por ID na lista de processos prontos
     list <process *> :: iterator processIterator;
 
-    for(processIterator = processesFinished.begin();
-        processIterator != processesFinished.end();
-        ++processIterator) {
+    for (processIterator = processesReady.begin();
+         processIterator != processesReady.end();
+         ++processIterator) {
         if ((*processIterator)->processId == tId) {
-            *res = (*processIterator)->returnValue;
+            // Retira a tarefa da lista de tarefas prontas
+            processesReady.remove(*processIterator);
 
-            return SUCCESS;
-        }
-    }
-
-    for(processIterator = processesReady.begin();
-        processIterator != processesReady.end();
-        ++processIterator) {
-        if ((*processIterator)->processId == tId) {
-            // Espera processo ser executado
+            // Executa a tarefa e atribui à res
             *res = (*processIterator)->function((*processIterator)->param);
 
-            storeResult((*processIterator), *res);
-
             return SUCCESS;
         }
     }
 
-    // Se nao encontrar, retorna FAILURE
-    return FAILURE;
+    while (true) {
+        // Se não encontrar, procura na lista de processos terminados
+        for (processIterator = processesFinished.begin();
+             processIterator != processesFinished.end();
+             ++processIterator) {
+            if ((*processIterator)->processId == tId) {
+                // Retira a tarefa da lista de tarefas terminadas
+                processesFinished.remove(*processIterator);
+
+                // Salva seu valor de retorno em res
+                *res = (*processIterator)->returnValue;
+
+                return SUCCESS;
+            }
+        }
+
+        // Se não encontrar, espera 1 segundos e tenta de novo
+        usleep(1);
+    }
 }

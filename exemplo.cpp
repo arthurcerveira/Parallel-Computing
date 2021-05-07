@@ -6,8 +6,6 @@
 using namespace std;
 
 void* fibo( void* dta ) {
-    cout << "Fibo\n";
-
     int t1, t2;
     int n = *(int*) dta;
     int *n1, *n2,
@@ -36,21 +34,17 @@ void* fibo( void* dta ) {
 int main() {
     int n, *r, tId;
     struct Atrib a;
-    std::cout << "Começou\n";
     start( 4 );
-    std::cout << "Pós start\n";
 
     r = (int*)malloc(sizeof(int));
 
-    n = 2;
+    n = 10;
     a.p = 0;
     a.c = n;
     tId = spawn( &a, fibo, &n);
     sync(tId,(void**) &r);
 
     printf("Fibonacci(%d) = %d\n", n, *(int *)r);
-
-    cout << "Prefinish\n";
 
     finish();
 
