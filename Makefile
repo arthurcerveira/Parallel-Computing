@@ -6,19 +6,23 @@ CFLAGS=-pthread -o
 build: minhaBiblioteca.cpp
 	$(CC) $(CFLAGS) minhaBiblioteca minhaBiblioteca.cpp
 
-#Run test
-run: minhaBiblioteca.cpp
-	$(CC) $(CFLAGS) minhaBiblioteca minhaBiblioteca.cpp
-	./minhaBiblioteca
-	rm -rf *.o minhaBiblioteca
-
 #Remove temp files
 clean:
-	rm -rf *.o minhaBiblioteca exemplo
+	rm -rf *.o exemplo
 
-example: exemplo.cpp
+run: exemplo.cpp
 	$(CC) $(CFLAGS) exemplo exemplo.cpp minhaBiblioteca.cpp
 	./exemplo
+	rm -rf *.o exemplo
+
+debug: exemplo.cpp
+	$(CC) -g $(CFLAGS) exemplo exemplo.cpp minhaBiblioteca.cpp
+	gdb ./exemplo
+	rm -rf *.o exemplo
+
+timeit: exemplo.cpp
+	$(CC) -g $(CFLAGS) exemplo exemplo.cpp minhaBiblioteca.cpp
+	time ./exemplo
 	rm -rf *.o exemplo
 
 
