@@ -1,3 +1,5 @@
 .idea
 minhaBiblioteca
 *.o
+exemplo
+*.csv
