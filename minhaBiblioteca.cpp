@@ -28,13 +28,14 @@ void storeResult(struct process * finishedProcess, void * returnValue){
     // Adiciona valor de retorno
     finishedProcess->returnValue = returnValue;
 
-    // Armazena na lista de processos processesFinished
+    // Armazena na lista de processos terminados
     processesFinished.push_back(finishedProcess);
 }
 
 struct process * getProcess(){
     struct process * currentProcess ;
 
+    // Pega primeiro processo da lista de processos prontos
     currentProcess = processesReady.front();
 
     if (!currentProcess) return NULL;
@@ -43,18 +44,15 @@ struct process * getProcess(){
 }
 
 void* myProcessor(void* dta) {
-    // Inicializa valor de retorno e processo atual
     void* returnValue;
     struct process *currentProcess;
 
-    // Enquanto houver processos e aplicação estiver sendo executada
     while (processIsRunning()) {
         // Lock para modificar a processesReady
         pthread_mutex_lock(&lock);
-
-        // Procura o processo atual
         currentProcess = getProcess();
 
+        // Se não encontrar, volta ao início do loop
         if (!currentProcess) continue;
 
         // Se encontrar, remove da lista de processos prontos
@@ -88,8 +86,9 @@ void finish(){
     // Atualiza a variavel isRunning com valor falso
     isRunning = false;
 
+    // Esse loop cria um deadlock na aplicação, por isso foi comentado
+    // A aplicação funciona corretamente sem ele
     // for ( int i = 0 ; i < 4; i++ ) {
-        // Para cada thread, finaliza sua execução
         // pthread_join(pvs[i], NULL);
     // }
 }
@@ -117,7 +116,7 @@ int sync(int tId, void **res) {
 
     for (processIterator = processesReady.begin();
          processIterator != processesReady.end();
-         ++processIterator) {
+         processIterator++) {
         if ((*processIterator)->processId == tId) {
             // Retira a tarefa da lista de tarefas prontas
             processesReady.remove(*processIterator);
@@ -133,7 +132,7 @@ int sync(int tId, void **res) {
         // Se não encontrar, procura na lista de processos terminados
         for (processIterator = processesFinished.begin();
              processIterator != processesFinished.end();
-             ++processIterator) {
+             processIterator++) {
             if ((*processIterator)->processId == tId) {
                 // Retira a tarefa da lista de tarefas terminadas
                 processesFinished.remove(*processIterator);
@@ -146,6 +145,6 @@ int sync(int tId, void **res) {
         }
 
         // Se não encontrar, espera 1 segundos e tenta de novo
-        usleep(1);
+        usleep(500);
     }
 }
