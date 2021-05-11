@@ -1,16 +1,17 @@
 #ifndef _MINHABIBLIOTECA_H_
 #define _MINHABIBLIOTECA_H_
 
+struct Atrib {
+    int p;
+    int c;
+};
+
 struct process {
     void *(*function)(void *);
     void * param;
     void * returnValue;
     int processId;
-};
-
-struct Atrib {
-    int p;
-    int c;
+    struct Atrib * atrib;
 };
 
 // Esta primitiva lança o núcleo de execução,

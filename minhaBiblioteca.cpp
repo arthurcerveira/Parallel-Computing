@@ -1,4 +1,5 @@
 #include "minhaBiblioteca.h"
+#include <stdio.h>
 #include <stdlib.h>
 #include <pthread.h>
 #include <list>
@@ -8,6 +9,12 @@ using namespace std;
 
 #define SUCCESS 1
 #define FAILURE 0
+
+// Algoritmos de Escalonamento
+// 0 FCFS
+// 1 SJF
+// 2 PRIOc
+#define ESCALONAMENTO 0
 
 bool isRunning = true;
 
@@ -33,12 +40,18 @@ void storeResult(struct process * finishedProcess, void * returnValue){
 }
 
 struct process * getProcess(){
-    struct process * currentProcess ;
+    // Lock para modificar a processesReady
+    pthread_mutex_lock(&lock);
 
-    // Pega primeiro processo da lista de processos prontos
+    struct process * currentProcess;
+
+    if (processesReady.empty()) return NULL;
+
     currentProcess = processesReady.front();
 
-    if (!currentProcess) return NULL;
+    // Se encontrar, remove da lista de processos prontos
+    processesReady.remove(currentProcess);
+    pthread_mutex_unlock(&lock);
 
     return currentProcess;
 }
@@ -48,16 +61,10 @@ void* myProcessor(void* dta) {
     struct process *currentProcess;
 
     while (processIsRunning()) {
-        // Lock para modificar a processesReady
-        pthread_mutex_lock(&lock);
         currentProcess = getProcess();
 
         // Se não encontrar, volta ao início do loop
         if (!currentProcess) continue;
-
-        // Se encontrar, remove da lista de processos prontos
-        processesReady.remove(currentProcess);
-        pthread_mutex_unlock(&lock);
 
         // Executa função
         returnValue = currentProcess->function(currentProcess->param);
@@ -75,7 +82,7 @@ int start(int m) {
     pvs = (pthread_t *)malloc(m * sizeof(pthread_t));
 
     for( int i = 0 ; i < m; i++ ) {
-        // Para cada thread, inicializa com a função MeuPV
+        // Para cada thread, inicializa com a função myProcessor
         ret |= pthread_create(&pvs[i], NULL, myProcessor, NULL);
     }
 
@@ -89,7 +96,7 @@ void finish(){
     // Esse loop cria um deadlock na aplicação, por isso foi comentado
     // A aplicação funciona corretamente sem ele
     // for ( int i = 0 ; i < 4; i++ ) {
-        // pthread_join(pvs[i], NULL);
+    //     pthread_join(pvs[i], NULL);
     // }
 }
 
@@ -103,9 +110,50 @@ int spawn(struct Atrib *atrib, void *(*t)(void *), void *dta) {
     spawnedProcess->function = t;
     spawnedProcess->param = dta;
     spawnedProcess->processId = id;
+    spawnedProcess->atrib = atrib;
 
-    // Adiciona à lista
+// Escolhe o processo de acordo com algoritmo de escalonamento
+#if ESCALONAMENTO == 0  // FCFS
     processesReady.push_back(spawnedProcess);
+#endif
+
+#if ESCALONAMENTO == 1  // SJF
+    list <process *> :: iterator processIterator;
+    bool inserted = false;
+
+    for (processIterator = processesReady.begin();
+         processIterator != processesReady.end();
+         processIterator++) {
+        // Percorre a lista até encontrar um custo maior
+        if ((*processIterator)->atrib->c > spawnedProcess->atrib->c) {
+            // Ao encontrar, insere processo antes dele
+            processesReady.insert(processIterator, spawnedProcess);
+            inserted = true;
+            break;
+        }
+    }
+
+    if (!inserted) processesReady.push_back(spawnedProcess);
+#endif
+
+#if ESCALONAMENTO == 2  // PRIOp
+    list <process *> :: iterator processIterator;
+    bool inserted = false;
+
+    for (processIterator = processesReady.begin();
+         processIterator != processesReady.end();
+         processIterator++) {
+        // Percorre a lista até encontrar um prioridade menor
+        if ((*processIterator)->atrib->p < spawnedProcess->atrib->p){
+            // Ao encontrar, insere processo antes dele
+            processesReady.insert(processIterator, spawnedProcess);
+            inserted = true;
+            break;
+        }
+    }
+
+    if (!inserted) processesReady.push_back(spawnedProcess);
+#endif
 
     return id;
 }
@@ -144,7 +192,7 @@ int sync(int tId, void **res) {
             }
         }
 
-        // Se não encontrar, espera 1 segundos e tenta de novo
-        usleep(500);
+        // Se não encontrar, espera 0.1 segundo e tenta de novo
+        usleep(100);
     }
 }
