@@ -20,7 +20,7 @@ void* fibo( void* dta ) {
         t1 = spawn( &a1, fibo, (void*) n1 );
         n2 = (int *) malloc(sizeof(int));
         *n2 = n - 2;
-        a2.p = 0; a1.c = *n2;
+        a2.p = 0; a2.c = *n2;
         t2 = spawn( &a2, fibo, (void*) n2 );
         sync( t1, (void**) &r1 );
         sync( t2, (void**) &r2 );
