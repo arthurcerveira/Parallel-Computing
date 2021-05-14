@@ -20,7 +20,8 @@ bool isRunning = true;
 list <process *> processesReady, processesFinished;
 
 static pthread_t * pvs;
-pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t lock;
+pthread_mutexattr_t attr;
 
 bool processIsRunning() {
     // Verifica se há processos pendentes
@@ -39,9 +40,6 @@ void storeResult(struct process * finishedProcess, void * returnValue){
 }
 
 struct process * getProcess(){
-    // Lock para modificar a processesReady
-    pthread_mutex_lock(&lock);
-
     struct process * currentProcess;
 
     if (processesReady.empty()) return NULL;
@@ -50,7 +48,6 @@ struct process * getProcess(){
 
     // Se encontrar, remove da lista de processos prontos
     processesReady.remove(currentProcess);
-    pthread_mutex_unlock(&lock);
 
     return currentProcess;
 }
@@ -60,7 +57,13 @@ void* myProcessor(void* dta) {
     struct process *currentProcess;
 
     while (processIsRunning()) {
+        // Lock para modificar a processesReady
+        // if (!pthread_mutex_trylock(&lock)) continue;
+        pthread_mutex_lock(&lock);
+
         currentProcess = getProcess();
+
+        pthread_mutex_unlock(&lock);
 
         // Se não encontrar, volta ao início do loop
         if (!currentProcess) continue;
@@ -76,6 +79,10 @@ void* myProcessor(void* dta) {
 }
 
 int start(int m) {
+    pthread_mutexattr_init(&attr);
+    pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
+    pthread_mutex_init(&lock, &attr);
+
     int ret = 0;
     // Aloca memoria para os threads
     pvs = (pthread_t *)malloc(m * sizeof(pthread_t));
@@ -94,25 +101,27 @@ void finish(){
 
     // Esse loop cria um deadlock na aplicação, por isso foi comentado
     // A aplicação funciona corretamente sem ele
-    // for ( int i = 0 ; i < 4; i++ ) {
-    //     pthread_join(pvs[i], NULL);
-    // }
+     for ( int i = 0 ; i < 4; i++ ) {
+         pthread_join(pvs[i], NULL);
+     }
 }
 
 int spawn(struct Atrib *atrib, void *(*t)(void *), void *dta) {
     static int id = 0;
-    id++;  // ID começa em 1 e é atualizado em cada execução de spawn
+    // Lock do mutex aqui?
+    int processId = id++;  // ID começa em 1 e é atualizado em cada execução de spawn
 
     // Cria o processo
     struct process * spawnedProcess = (struct process *)malloc(sizeof(struct process));
 
     spawnedProcess->function = t;
     spawnedProcess->param = dta;
-    spawnedProcess->processId = id;
+    spawnedProcess->processId = processId;
     spawnedProcess->atrib = atrib;
 
 // Escolhe o processo de acordo com algoritmo de escalonamento
 #if ESCALONAMENTO == 0  // FCFS
+    // Mutex de modificação na lista aqui?
     processesReady.push_back(spawnedProcess);
 #endif
 
@@ -154,12 +163,14 @@ int spawn(struct Atrib *atrib, void *(*t)(void *), void *dta) {
     if (!inserted) processesReady.push_back(spawnedProcess);
 #endif
 
-    return id;
+    return processId;
 }
 
 int sync(int tId, void **res) {
     // Procura a thread por ID na lista de processos prontos
     list <process *> :: iterator processIterator;
+
+    pthread_mutex_lock(&lock);
 
     for (processIterator = processesReady.begin();
          processIterator != processesReady.end();
@@ -174,6 +185,8 @@ int sync(int tId, void **res) {
             return SUCCESS;
         }
     }
+
+    pthread_mutex_unlock(&lock);
 
     while (true) {
         // Se não encontrar, procura na lista de processos terminados
