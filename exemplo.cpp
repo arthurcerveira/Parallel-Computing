@@ -63,7 +63,7 @@ int main(int argc, char** argv) {
 
     printf("Fibonacci(%d) = %d\n", n, *(int *)r);
 
-    finish();
+    finish(m);
 
     return 0;
 }

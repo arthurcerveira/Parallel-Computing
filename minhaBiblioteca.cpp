@@ -21,8 +21,10 @@ bool isRunning = true;
 list <process *> processesReady, processesFinished;
 
 static pthread_t * pvs;
-pthread_mutex_t lock;
-pthread_mutexattr_t attr;
+pthread_mutex_t lockProcessesReady = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t lockProcessesFinished = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t lockId = PTHREAD_MUTEX_INITIALIZER;
+
 
 bool processIsRunning() {
     // Verifica se há processos pendentes
@@ -37,7 +39,12 @@ void storeResult(struct process * finishedProcess, void * returnValue){
     finishedProcess->returnValue = returnValue;
 
     // Armazena na lista de processos terminados
+    pthread_mutex_lock(&lockProcessesFinished);
+
     processesFinished.push_back(finishedProcess);
+
+    pthread_mutex_unlock(&lockProcessesFinished);
+
 }
 
 struct process * getProcess(){
@@ -59,12 +66,11 @@ void* myProcessor(void* dta) {
 
     while (processIsRunning()) {
         // Lock para modificar a processesReady
-        // if (!pthread_mutex_trylock(&lock)) continue;
-        pthread_mutex_lock(&lock);
+        pthread_mutex_lock(&lockProcessesReady);
 
         currentProcess = getProcess();
 
-        pthread_mutex_unlock(&lock);
+        pthread_mutex_unlock(&lockProcessesReady);
 
         // Se não encontrar, volta ao início do loop
         if (!currentProcess) continue;
@@ -80,15 +86,11 @@ void* myProcessor(void* dta) {
 }
 
 int start(int m) {
-    pthread_mutexattr_init(&attr);
-    pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
-    pthread_mutex_init(&lock, &attr);
-
     int ret = 0;
     // Aloca memoria para os threads
-    pvs = (pthread_t *)malloc(m * sizeof(pthread_t));
+    pvs = (pthread_t *)malloc((m + 1) * sizeof(pthread_t));
 
-    for( int i = 0 ; i < m; i++ ) {
+    for( int i = 0 ; i < m; ++i ) {
         // Para cada thread, inicializa com a função myProcessor
         ret |= pthread_create(&pvs[i], NULL, myProcessor, NULL);
     }
@@ -96,21 +98,23 @@ int start(int m) {
     return ret;
 }
 
-void finish(){
+void finish(int m){
     // Atualiza a variavel isRunning com valor falso
     isRunning = false;
 
-    // Esse loop cria um deadlock na aplicação, por isso foi comentado
-    // A aplicação funciona corretamente sem ele
-     for ( int i = 0 ; i < 4; i++ ) {
-         pthread_join(pvs[i], NULL);
-     }
+    for ( int i = 0 ; i < m; ++i ) {
+        pthread_join(pvs[i], NULL);
+    }
 }
 
 int spawn(struct Atrib *atrib, void *(*t)(void *), void *dta) {
     static int id = 0;
-    // Lock do mutex aqui?
-    int processId = id++;  // ID começa em 1 e é atualizado em cada execução de spawn
+
+    pthread_mutex_lock(&lockId);
+
+    int processId = ++id;  // ID começa em 1 e é atualizado em cada execução de spawn
+
+    pthread_mutex_unlock(&lockId);
 
     // Cria o processo
     struct process * spawnedProcess = (struct process *)malloc(sizeof(struct process));
@@ -119,6 +123,8 @@ int spawn(struct Atrib *atrib, void *(*t)(void *), void *dta) {
     spawnedProcess->param = dta;
     spawnedProcess->processId = processId;
     spawnedProcess->atrib = atrib;
+
+    pthread_mutex_lock(&lockProcessesReady);
 
 // Escolhe o processo de acordo com algoritmo de escalonamento
 #if ESCALONAMENTO == 0  // FCFS
@@ -132,7 +138,7 @@ int spawn(struct Atrib *atrib, void *(*t)(void *), void *dta) {
 
     for (processIterator = processesReady.begin();
          processIterator != processesReady.end();
-         processIterator++) {
+         ++processIterator) {
         // Percorre a lista até encontrar um custo maior
         if ((*processIterator)->atrib->c > spawnedProcess->atrib->c) {
             // Ao encontrar, insere processo antes dele
@@ -151,7 +157,7 @@ int spawn(struct Atrib *atrib, void *(*t)(void *), void *dta) {
 
     for (processIterator = processesReady.begin();
          processIterator != processesReady.end();
-         processIterator++) {
+         ++processIterator) {
         // Percorre a lista até encontrar um prioridade menor
         if ((*processIterator)->atrib->p < spawnedProcess->atrib->p){
             // Ao encontrar, insere processo antes dele
@@ -164,6 +170,8 @@ int spawn(struct Atrib *atrib, void *(*t)(void *), void *dta) {
     if (!inserted) processesReady.push_back(spawnedProcess);
 #endif
 
+    pthread_mutex_unlock(&lockProcessesReady);
+
     return processId;
 }
 
@@ -171,14 +179,16 @@ int sync(int tId, void **res) {
     // Procura a thread por ID na lista de processos prontos
     list <process *> :: iterator processIterator;
 
-    pthread_mutex_lock(&lock);
+    pthread_mutex_lock(&lockProcessesReady);
 
     for (processIterator = processesReady.begin();
          processIterator != processesReady.end();
-         processIterator++) {
+         ++processIterator) {
         if ((*processIterator)->processId == tId) {
             // Retira a tarefa da lista de tarefas prontas
             processesReady.remove(*processIterator);
+
+            pthread_mutex_unlock(&lockProcessesReady);
 
             // Executa a tarefa e atribui à res
             *res = (*processIterator)->function((*processIterator)->param);
@@ -187,16 +197,21 @@ int sync(int tId, void **res) {
         }
     }
 
-    pthread_mutex_unlock(&lock);
+    pthread_mutex_unlock(&lockProcessesReady);
+
+    // MUTEX de lista finalizada
+    pthread_mutex_lock(&lockProcessesFinished);
 
     while (true) {
         // Se não encontrar, procura na lista de processos terminados
         for (processIterator = processesFinished.begin();
              processIterator != processesFinished.end();
-             processIterator++) {
+             ++processIterator) {
             if ((*processIterator)->processId == tId) {
                 // Retira a tarefa da lista de tarefas terminadas
                 processesFinished.remove(*processIterator);
+
+                pthread_mutex_unlock(&lockProcessesFinished);
 
                 // Salva seu valor de retorno em res
                 *res = (*processIterator)->returnValue;
@@ -205,7 +220,9 @@ int sync(int tId, void **res) {
             }
         }
 
-        // Se não encontrar, espera 0.1 segundo e tenta de novo
-        usleep(100);
+        pthread_mutex_unlock(&lockProcessesFinished);
+
+        // Se não encontrar, espera 0.01 segundo e tenta de novo
+        usleep(10);
     }
 }

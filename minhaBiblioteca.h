@@ -22,7 +22,7 @@ int start(int m);
 
 // Esta primitiva é bloqueante,
 // retornando após todos os processadores virtuais terem finalizado.
-void finish();
+void finish(int m);
 
 // A primitiva spawn lança a execução da tarefa descrita no ponteiro para função
 // indicada pelo parâmetro t. O parâmetro para a função *t é descrito no parâmetro dta.
