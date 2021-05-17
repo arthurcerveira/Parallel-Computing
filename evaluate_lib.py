@@ -1,4 +1,6 @@
 import subprocess
+from contextlib import suppress
+
 
 fibonacci_input = range(7, 36, 7)
 virtual_processors = range(3, 16, 3)
@@ -30,9 +32,15 @@ for fib_in in fibonacci_input:
     for pv in virtual_processors:
         cmd = f"time ./exemplo {pv} {fib_in}"
 
+        output = ""
+
         # Executa comando
-        output = subprocess.check_output(['bash', '-c', cmd],
-                                         stderr=subprocess.STDOUT)
+        while not output:
+            # As vezes o comando retorna um erro
+            with suppress(subprocess.CalledProcessError):
+                output = subprocess.check_output(['bash', '-c', cmd],
+                                                 stderr=subprocess.STDOUT)
+
         output_str = output.decode("utf-8")
 
         # Pega saída

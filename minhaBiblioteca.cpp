@@ -122,7 +122,10 @@ int spawn(struct Atrib *atrib, void *(*t)(void *), void *dta) {
     spawnedProcess->function = t;
     spawnedProcess->param = dta;
     spawnedProcess->processId = processId;
-    spawnedProcess->atrib = atrib;
+
+    spawnedProcess->atrib = (struct Atrib *)malloc(sizeof(struct Atrib));
+    spawnedProcess->atrib->p = atrib->p;
+    spawnedProcess->atrib->c = atrib->c;
 
     pthread_mutex_lock(&lockProcessesReady);
 
