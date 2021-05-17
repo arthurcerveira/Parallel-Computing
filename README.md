@@ -8,7 +8,7 @@ Foram implementados 3 algoritmos de escalonamento para a biblioteca: FCFS, SJF, 
 
 ### Dificuldades e soluções
 
-As maiores dificldades encontradas foram relacionadas à depuração dos programas em paralelo. Para solucionar esses problemas, foram utilizadas as ferramentas `valgrind` e `gdb`, e à ajuda do professor Gerson. 
+As maiores dificldades encontradas foram relacionadas à depuração dos programas em paralelo. Para solucionar esses problemas, foram utilizadas as ferramentas `valgrind` e `gdb`, e a ajuda do professor Gerson. 
 
 ### Instruções para execução
 
