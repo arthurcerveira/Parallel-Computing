@@ -7,7 +7,7 @@ virtual_processors = range(3, 16, 3)
 
 output_file = "Evaluation.csv"
 
-header = "," + "".join([f"{vp}," for vp in virtual_processors]) + '\n'
+header = "," + ",".join([f"{vp}" for vp in virtual_processors]) + '\n'
 
 with open(output_file, 'w') as output:
     output.write(header)
@@ -32,7 +32,7 @@ for fib_in in fibonacci_input:
     for pv in virtual_processors:
         cmd = f"time ./exemplo {pv} {fib_in}"
 
-        output = ""
+        output = str()
 
         # Executa comando
         while not output:
